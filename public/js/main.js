@@ -1,4 +1,4 @@
-const API = 'http://localhost:5000/api';
+const API = 'https://farmers-direct-market.onrender.com/api';
 
 // Save token to localStorage
 function saveToken(token) {
