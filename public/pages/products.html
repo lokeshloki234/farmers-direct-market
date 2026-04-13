@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Products - Farmers Direct</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav>
+    <a href="/" class="logo">🌱 Farmers Direct</a>
+    <ul id="nav-links"></ul>
+  </nav>
+
+  <!-- PRODUCTS SECTION -->
+  <div class="container">
+    <h2 class="page-title">Fresh Products</h2>
+
+    <!-- SEARCH AND FILTER -->
+    <div style="display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap;">
+      <input
+        type="text"
+        id="search"
+        placeholder="Search products..."
+        style="padding:10px 14px; border:1px solid #ccc; border-radius:6px; font-size:15px; flex:1; min-width:200px;"
+        oninput="filterProducts()"
+      />
+      <select
+        id="category-filter"
+        style="padding:10px 14px; border:1px solid #ccc; border-radius:6px; font-size:15px;"
+        onchange="filterProducts()"
+      >
+        <option value="">All Categories</option>
+        <option value="Vegetables">Vegetables</option>
+        <option value="Fruits">Fruits</option>
+        <option value="Grains">Grains</option>
+        <option value="Dairy">Dairy</option>
+        <option value="Herbs & Spices">Herbs & Spices</option>
+      </select>
+    </div>
+
+    <div id="alert-box"></div>
+
+    <!-- PRODUCTS GRID -->
+    <div class="cards-grid" id="products-grid">
+      <p>Loading products...</p>
+    </div>
+  </div>
+
+  <!-- ORDER MODAL -->
+  <div id="order-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.5); z-index:999; justify-content:center; align-items:center;">
+    <div style="background:white; padding:32px; border-radius:10px; width:90%; max-width:460px;">
+      <h3 style="margin-bottom:16px; color:#2e7d32;">Place Order</h3>
+      <div id="modal-alert"></div>
+      <p id="modal-product-name" style="font-weight:600; margin-bottom:12px;"></p>
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="number" id="order-quantity" min="1" value="1" />
+      </div>
+      <div class="form-group">
+        <label>Delivery Address</label>
+        <textarea id="order-address" rows="3" placeholder="Enter delivery address"></textarea>
+      </div>
+      <div style="display:flex; gap:12px; margin-top:8px;">
+        <button class="btn btn-green" onclick="submitOrder()">Confirm Order</button>
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>© 2024 Farmers Direct Market</p>
+  </footer>
+
+  <script src="/js/main.js"></script>
+  <script>
+    updateNavbar();
+
+    let allProducts = [];
+    let selectedProductId = null;
+
+    // Load all products when page opens
+    async function loadProducts() {
+      try {
+        const res = await fetch(`${API}/products`);
+        const data = await res.json();
+        allProducts = data;
+        renderProducts(allProducts);
+      } catch (err) {
+        document.getElementById('products-grid').innerHTML =
+          '<p>Failed to load products. Please refresh.</p>';
+      }
+    }
+
+    // Render products to the grid
+    function renderProducts(products) {
+      const grid = document.getElementById('products-grid');
+
+      if (products.length === 0) {
+        grid.innerHTML = '<p>No products found.</p>';
+        return;
+      }
+
+      grid.innerHTML = products.map(p => `
+        <div class="card">
+          <div style="background:#e8f5e9; padding:30px; text-align:center; font-size:48px;">
+            ${getCategoryEmoji(p.category_name)}
+          </div>
+          <div class="card-body">
+            <h3>${p.name}</h3>
+            <p>${p.description || 'No description provided.'}</p>
+            <p style="font-size:13px; color:#888;">By ${p.farmer_name} &nbsp;|&nbsp; ${p.category_name || 'General'}</p>
+            <p style="font-size:13px; color:#888;">Available: ${p.quantity} ${p.unit}</p>
+            <div class="price">₹${p.price} / ${p.unit}</div>
+            ${getBuyButton(p)}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Show buy button only for buyers
+    function getBuyButton(product) {
+      const user = getUser();
+      if (!user) {
+        return `<a href="/pages/login.html" class="btn btn-outline" style="width:100%; text-align:center;">Login to Buy</a>`;
+      }
+      if (user.role === 'buyer') {
+        return `<button class="btn btn-green" style="width:100%;"
+          onclick="openModal(${product.id}, '${product.name}', ${product.quantity})">
+          Buy Now
+        </button>`;
+      }
+      return '';
+    }
+
+    // Emoji based on category
+    function getCategoryEmoji(category) {
+      const map = {
+        'Vegetables': '🥦',
+        'Fruits': '🍎',
+        'Grains': '🌾',
+        'Dairy': '🥛',
+        'Herbs & Spices': '🌿'
+      };
+      return map[category] || '🛒';
+    }
+
+    // Search and filter
+    function filterProducts() {
+      const search = document.getElementById('search').value.toLowerCase();
+      const category = document.getElementById('category-filter').value;
+
+      const filtered = allProducts.filter(p => {
+        const matchSearch = p.name.toLowerCase().includes(search) ||
+          (p.description && p.description.toLowerCase().includes(search));
+        const matchCategory = !category || p.category_name === category;
+        return matchSearch && matchCategory;
+      });
+
+      renderProducts(filtered);
+    }
+
+    // Open order modal
+    function openModal(productId, productName, maxQty) {
+      selectedProductId = productId;
+      document.getElementById('modal-product-name').textContent = `Product: ${productName}`;
+      document.getElementById('order-quantity').max = maxQty;
+      document.getElementById('order-address').value = '';
+      document.getElementById('modal-alert').innerHTML = '';
+      document.getElementById('order-modal').style.display = 'flex';
+    }
+
+    // Close order modal
+    function closeModal() {
+      document.getElementById('order-modal').style.display = 'none';
+      selectedProductId = null;
+    }
+
+    // Submit order
+    async function submitOrder() {
+      const quantity = parseInt(document.getElementById('order-quantity').value);
+      const delivery_address = document.getElementById('order-address').value.trim();
+      const token = getToken();
+
+      if (!delivery_address) {
+        showAlert('modal-alert', 'Please enter a delivery address.', 'error');
+        return;
+      }
+
+      if (!quantity || quantity < 1) {
+        showAlert('modal-alert', 'Please enter a valid quantity.', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            delivery_address,
+            items: [{ product_id: selectedProductId, quantity }]
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          closeModal();
+          showAlert('alert-box', `Order placed successfully! Order ID: ${data.orderId}`, 'success');
+          loadProducts();
+        } else {
+          showAlert('modal-alert', data.message, 'error');
+        }
+
+      } catch (err) {
+        showAlert('modal-alert', 'Something went wrong. Please try again.', 'error');
+      }
+    }
+
+    loadProducts();
+  </script>
+
+</body>
+</html>

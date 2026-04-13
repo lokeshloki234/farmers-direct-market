@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Farmer Dashboard - Farmers Direct</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav>
+    <a href="/" class="logo">🌱 Farmers Direct</a>
+    <ul id="nav-links"></ul>
+  </nav>
+
+  <div class="container">
+    <h2 class="page-title">My Dashboard</h2>
+
+    <!-- ADD PRODUCT FORM -->
+    <div style="background:white; padding:28px; border-radius:10px;
+      box-shadow:0 2px 10px rgba(0,0,0,0.08); margin-bottom:40px;">
+      <h3 style="margin-bottom:20px; color:#2e7d32;">Add New Product</h3>
+
+      <div id="form-alert"></div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label>Product Name</label>
+          <input type="text" id="p-name" placeholder="e.g. Fresh Tomatoes" />
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="p-category">
+            <option value="1">Vegetables</option>
+            <option value="2">Fruits</option>
+            <option value="3">Grains</option>
+            <option value="4">Dairy</option>
+            <option value="5">Herbs & Spices</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Price (₹)</label>
+          <input type="number" id="p-price" placeholder="e.g. 40" />
+        </div>
+        <div class="form-group">
+          <label>Quantity</label>
+          <input type="number" id="p-quantity" placeholder="e.g. 100" />
+        </div>
+        <div class="form-group">
+          <label>Unit</label>
+          <select id="p-unit">
+            <option value="kg">kg</option>
+            <option value="g">g</option>
+            <option value="litre">litre</option>
+            <option value="dozen">dozen</option>
+            <option value="piece">piece</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Product Image</label>
+          <input type="file" id="p-image" accept="image/*" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="p-description" rows="3" placeholder="Describe your product..."></textarea>
+      </div>
+
+      <button class="btn btn-green" onclick="addProduct()">Add Product</button>
+    </div>
+
+    <!-- MY PRODUCTS TABLE -->
+    <h3 style="margin-bottom:16px; color:#2e7d32;">My Products</h3>
+    <div id="products-alert"></div>
+    <div id="products-table">Loading...</div>
+
+    <!-- RECEIVED ORDERS TABLE -->
+    <h3 style="margin:40px 0 16px; color:#2e7d32;">Orders Received</h3>
+    <div id="orders-table">Loading...</div>
+  </div>
+
+  <footer>
+    <p>© 2024 Farmers Direct Market</p>
+  </footer>
+
+  <script src="/js/main.js"></script>
+  <script>
+    updateNavbar();
+
+    // Redirect if not a farmer
+    const user = getUser();
+    if (!user || user.role !== 'farmer') {
+      window.location.href = '/pages/login.html';
+    }
+
+    // Add a new product
+    async function addProduct() {
+      const name        = document.getElementById('p-name').value.trim();
+      const category_id = document.getElementById('p-category').value;
+      const price       = document.getElementById('p-price').value;
+      const quantity    = document.getElementById('p-quantity').value;
+      const unit        = document.getElementById('p-unit').value;
+      const description = document.getElementById('p-description').value.trim();
+      const imageFile   = document.getElementById('p-image').files[0];
+
+      if (!name || !price || !quantity) {
+        showAlert('form-alert', 'Name, price and quantity are required.', 'error');
+        return;
+      }
+
+      // Use FormData because we are uploading an image
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('category_id', category_id);
+      formData.append('price', price);
+      formData.append('quantity', quantity);
+      formData.append('unit', unit);
+      formData.append('description', description);
+      if (imageFile) formData.append('image', imageFile);
+
+      try {
+        const res = await fetch(`${API}/products`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${getToken()}` },
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          showAlert('form-alert', 'Product added successfully!', 'success');
+          // Clear the form
+          document.getElementById('p-name').value = '';
+          document.getElementById('p-price').value = '';
+          document.getElementById('p-quantity').value = '';
+          document.getElementById('p-description').value = '';
+          document.getElementById('p-image').value = '';
+          loadProducts();
+        } else {
+          showAlert('form-alert', data.message, 'error');
+        }
+
+      } catch (err) {
+        showAlert('form-alert', 'Something went wrong. Please try again.', 'error');
+      }
+    }
+
+    // Load farmer's own products
+    async function loadProducts() {
+      try {
+        const res = await fetch(`${API}/products`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const data = await res.json();
+
+        // Filter only this farmer's products
+        const myProducts = data.filter(p => p.farmer_id === user.id);
+
+        if (myProducts.length === 0) {
+          document.getElementById('products-table').innerHTML =
+            '<p>You have not added any products yet.</p>';
+          return;
+        }
+
+        document.getElementById('products-table').innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${myProducts.map(p => `
+                <tr>
+                  <td>${p.name}</td>
+                  <td>${p.category_name || '-'}</td>
+                  <td>₹${p.price}</td>
+                  <td>${p.quantity} ${p.unit}</td>
+                  <td>
+                    <button class="btn btn-red"
+                      style="padding:6px 14px; font-size:13px;"
+                      onclick="deleteProduct(${p.id})">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+
+      } catch (err) {
+        document.getElementById('products-table').innerHTML =
+          '<p>Failed to load products.</p>';
+      }
+    }
+
+    // Delete a product
+    async function deleteProduct(id) {
+      if (!confirm('Are you sure you want to delete this product?')) return;
+
+      try {
+        const res = await fetch(`${API}/products/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          showAlert('products-alert', 'Product deleted.', 'success');
+          loadProducts();
+        } else {
+          showAlert('products-alert', data.message, 'error');
+        }
+
+      } catch (err) {
+        showAlert('products-alert', 'Something went wrong.', 'error');
+      }
+    }
+
+    // Load orders received by this farmer
+    async function loadOrders() {
+      try {
+        const res = await fetch(`${API}/orders/received`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const data = await res.json();
+
+        if (data.length === 0) {
+          document.getElementById('orders-table').innerHTML =
+            '<p>No orders received yet.</p>';
+          return;
+        }
+
+        document.getElementById('orders-table').innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Buyer</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Address</th>
+                <th>Update Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.map(o => `
+                <tr>
+                  <td>#${o.id}</td>
+                  <td>${o.buyer_name}</td>
+                  <td>₹${o.total_amount}</td>
+                  <td><span class="badge badge-${o.status}">${o.status}</span></td>
+                  <td>${o.delivery_address}</td>
+                  <td>
+                    <select onchange="updateStatus(${o.id}, this.value)"
+                      style="padding:6px; border-radius:4px; border:1px solid #ccc;">
+                      <option value="pending"    ${o.status==='pending'    ? 'selected':''}>Pending</option>
+                      <option value="confirmed"  ${o.status==='confirmed'  ? 'selected':''}>Confirmed</option>
+                      <option value="shipped"    ${o.status==='shipped'    ? 'selected':''}>Shipped</option>
+                      <option value="delivered"  ${o.status==='delivered'  ? 'selected':''}>Delivered</option>
+                      <option value="cancelled"  ${o.status==='cancelled'  ? 'selected':''}>Cancelled</option>
+                    </select>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+
+      } catch (err) {
+        document.getElementById('orders-table').innerHTML =
+          '<p>Failed to load orders.</p>';
+      }
+    }
+
+    // Update order status
+    async function updateStatus(orderId, status) {
+      try {
+        const res = await fetch(`${API}/orders/${orderId}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getToken()}`
+          },
+          body: JSON.stringify({ status })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          showAlert('products-alert', 'Order status updated!', 'success');
+        } else {
+          showAlert('products-alert', data.message, 'error');
+        }
+
+      } catch (err) {
+        showAlert('products-alert', 'Something went wrong.', 'error');
+      }
+    }
+
+    loadProducts();
+    loadOrders();
+  </script>
+
+</body>
+</html>

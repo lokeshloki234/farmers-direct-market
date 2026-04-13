@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Register - Farmers Direct</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav>
+    <a href="/" class="logo">🌱 Farmers Direct</a>
+    <ul id="nav-links"></ul>
+  </nav>
+
+  <!-- REGISTER FORM -->
+  <div class="form-container">
+    <h2>Create Account</h2>
+
+    <div id="alert-box"></div>
+
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="name" placeholder="Enter your full name" />
+    </div>
+
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="Enter your email" />
+    </div>
+
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="Create a password" />
+    </div>
+
+    <div class="form-group">
+      <label>I am a</label>
+      <select id="role">
+        <option value="buyer">Buyer — I want to buy produce</option>
+        <option value="farmer">Farmer — I want to sell produce</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Phone Number</label>
+      <input type="text" id="phone" placeholder="Enter your phone number" />
+    </div>
+
+    <div class="form-group">
+      <label>Address</label>
+      <textarea id="address" rows="3" placeholder="Enter your address"></textarea>
+    </div>
+
+    <button class="btn btn-green" onclick="register()">Create Account</button>
+
+    <div class="form-footer">
+      Already have an account? <a href="/pages/login.html">Login here</a>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    updateNavbar();
+
+    async function register() {
+      const name     = document.getElementById('name').value.trim();
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const role     = document.getElementById('role').value;
+      const phone    = document.getElementById('phone').value.trim();
+      const address  = document.getElementById('address').value.trim();
+
+      if (!name || !email || !password) {
+        showAlert('alert-box', 'Name, email and password are required.', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, role, phone, address })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          showAlert('alert-box', 'Account created! Redirecting to login...', 'success');
+          setTimeout(() => {
+            window.location.href = '/pages/login.html';
+          }, 1500);
+        } else {
+          showAlert('alert-box', data.message, 'error');
+        }
+
+      } catch (err) {
+        showAlert('alert-box', 'Something went wrong. Please try again.', 'error');
+      }
+    }
+  </script>
+
+</body>
+</html>
