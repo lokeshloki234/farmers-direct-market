@@ -5,10 +5,138 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>My Orders - Farmers Direct</title>
   <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .tracker-card {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .order-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .order-id {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2e7d32;
+    }
+    .order-date {
+      font-size: 13px;
+      color: #666;
+    }
+    .order-items-list {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 16px;
+    }
+    .order-total {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 16px;
+    }
+    .road-container {
+      position: relative;
+      height: 110px;
+      margin: 1rem 0 0.5rem;
+    }
+    .road {
+      position: absolute;
+      top: 50%;
+      left: 8%;
+      right: 8%;
+      height: 8px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      transform: translateY(-50%);
+    }
+    .road-progress {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: #2e7d32;
+      border-radius: 4px;
+      transition: width 1s ease;
+    }
+    .waypoints {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 8%;
+    }
+    .waypoint {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    .wp-icon {
+      font-size: 18px;
+      position: absolute;
+      bottom: 30px;
+    }
+    .wp-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #e0e0e0;
+      border: 2px solid #bbb;
+      transition: all 0.5s ease;
+      z-index: 2;
+    }
+    .wp-dot.done {
+      background: #2e7d32;
+      border-color: #1b5e20;
+    }
+    .wp-label {
+      font-size: 11px;
+      color: #999;
+      text-align: center;
+      position: absolute;
+      top: 26px;
+      white-space: nowrap;
+    }
+    .wp-label.active {
+      color: #2e7d32;
+      font-weight: 600;
+    }
+    .truck {
+      position: absolute;
+      top: 50%;
+      font-size: 22px;
+      transform: translateY(-120%);
+      transition: left 1s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 10;
+    }
+    .status-text {
+      font-size: 13px;
+      color: #555;
+      margin-top: 8px;
+    }
+    .cancelled-banner {
+      background: #ffebee;
+      color: #c62828;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
-
-  <!-- NAVBAR -->
   <nav>
     <a href="/" class="logo">🌱 Farmers Direct</a>
     <ul id="nav-links"></ul>
@@ -20,17 +148,77 @@
   </div>
 
   <footer>
-    <p>© 2024 Farmers Direct Market</p>
+    <p>&copy; 2024 Farmers Direct Market</p>
   </footer>
 
   <script src="/js/main.js"></script>
   <script>
     updateNavbar();
 
-    // Redirect if not a buyer
     const user = getUser();
     if (!user || user.role !== 'buyer') {
       window.location.href = '/pages/login.html';
+    }
+
+    const statusPositions  = { pending: 8, confirmed: 38, shipped: 63, delivered: 90 };
+    const statusProgresses = { pending: 0, confirmed: 33, shipped: 66, delivered: 100 };
+    const statusMessages   = {
+      pending:   'Waiting for farmer to confirm your order.',
+      confirmed: 'Farmer has confirmed your order!',
+      shipped:   'Your order is on the way!',
+      delivered: 'Order delivered successfully!',
+      cancelled: 'This order was cancelled.'
+    };
+    const stageOrder = ['pending', 'confirmed', 'shipped', 'delivered'];
+
+    function buildTracker(order) {
+      const status = order.status;
+      const isCancelled = status === 'cancelled';
+      const stageIdx = stageOrder.indexOf(status);
+      const left = isCancelled ? 8 : (statusPositions[status] ?? 8);
+      const prog = isCancelled ? 0 : (statusProgresses[status] ?? 0);
+
+      const dotsHTML = [
+        { icon: '🌾', label: 'Order placed' },
+        { icon: '📦', label: 'Confirmed'    },
+        { icon: '🚚', label: 'Shipped'      },
+        { icon: '🏠', label: 'Delivered'    }
+      ].map((wp, i) => `
+        <div class="waypoint">
+          <div class="wp-icon">${wp.icon}</div>
+          <div class="wp-dot ${i <= stageIdx && !isCancelled ? 'done' : ''}"></div>
+          <div class="wp-label ${i === stageIdx && !isCancelled ? 'active' : ''}">${wp.label}</div>
+        </div>
+      `).join('');
+
+      const items = (order.items || []).map(i => `${i.product_name} x${i.quantity}`).join(', ');
+
+      return `
+        <div class="tracker-card">
+          <div class="order-meta">
+            <span class="order-id">Order #${order.id}</span>
+            <span class="order-date">${new Date(order.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</span>
+          </div>
+          <div class="order-items-list">${items}</div>
+          <div class="order-total">Total: ₹${parseFloat(order.total_amount).toFixed(2)}</div>
+          <div class="order-meta" style="margin-bottom:0;">
+            <span style="font-size:13px; color:#555;">Deliver to: ${order.delivery_address}</span>
+            <span class="badge badge-${status}">${status}</span>
+          </div>
+          ${isCancelled
+            ? `<div class="cancelled-banner">🚫 This order was cancelled</div>`
+            : `
+              <div class="road-container">
+                <div class="road">
+                  <div class="road-progress" style="width:${prog}%"></div>
+                </div>
+                <div class="waypoints">${dotsHTML}</div>
+                <div class="truck" style="left:${left}%">🚛</div>
+              </div>
+              <p class="status-text">${statusMessages[status] || ''}</p>
+            `}
+        </div>
+      `;
     }
 
     async function loadOrders() {
@@ -38,45 +226,16 @@
         const res = await fetch(`${API}/orders/mine`, {
           headers: { 'Authorization': `Bearer ${getToken()}` }
         });
-
         const data = await res.json();
 
-        if (data.length === 0) {
+        if (!data.length) {
           document.getElementById('orders-container').innerHTML =
             '<p>You have not placed any orders yet. <a href="/pages/products.html">Browse products</a></p>';
           return;
         }
 
-        document.getElementById('orders-container').innerHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Items</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Delivery Address</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.map(o => `
-                <tr>
-                  <td>#${o.id}</td>
-                  <td>
-                    ${o.items.map(i =>
-                      `${i.product_name} x${i.quantity}`
-                    ).join('<br>')}
-                  </td>
-                  <td>₹${o.total_amount}</td>
-                  <td><span class="badge badge-${o.status}">${o.status}</span></td>
-                  <td>${o.delivery_address}</td>
-                  <td>${new Date(o.created_at).toLocaleDateString()}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
+        document.getElementById('orders-container').innerHTML =
+          data.map(o => buildTracker(o)).join('');
 
       } catch (err) {
         document.getElementById('orders-container').innerHTML =
@@ -86,6 +245,5 @@
 
     loadOrders();
   </script>
-
 </body>
 </html>
